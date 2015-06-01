@@ -1,0 +1,46 @@
+package com.test;
+
+/**
+ * Created with IntelliJ IDEA.
+ * User: hbhatia
+ * Date: 5/28/15
+ * Time: 4:00 PM
+ * To change this template use File | Settings | File Templates.
+ */
+public class Oraclequeries {
+
+    public static String[] queries = {
+        "SELECT FROM [JobSkills]",
+        "SELECT FROM [JobSkills]",
+        // get all skills by count - query style 1
+        "SELECT [Skill].[All Skills].Children ON COLUMNS FROM [JobSkills] where ([Measures].[Skills Count])",
+        // get all skills by count  - query style 2
+        "SELECT [Measures].[Skills Count] ON 0, [Skill].[Skill Name].members ON 1 FROM [JobSkills]",
+            // top 20 skills by count
+        "SELECT [Measures].[Skills Count] ON 0, TopCount ({[Skill].[Skill Name].members}, 20, [Measures].[Skills Count]) ON 1 FROM [JobSkills]",
+        // location related queries
+        "SELECT [Job].[All Jobs].[USA].[CALIFORNIA].Children ON COLUMNS FROM [JobSkills]",    // by state
+        "SELECT [Job].[All Jobs].[USA].Children ON COLUMNS FROM [JobSkills]", // and roll up
+        "SELECT [Job].[All Jobs].[USA].[ARIZONA].Children ON COLUMNS FROM [JobSkills]",  // and drill down on other state
+        "SELECT [Job].[All Jobs].[USA].[ARIZONA].Children ON COLUMNS FROM [JobSkills]"
+
+
+            // query to select top 20 + others  // TODO doesn't work
+               /* "WITH " +
+                "SET TopJobSkills as 'TopCount([Skill].[Skill Name].members, 20, [Measures].[Skills Count])'" +
+                "SET OtherJobSkills as 'Except({[Skill].[Skill Name].members}, [TopJobSkills])'" +
+                "MEMBER Skill.[Skill Name].[(others)] as Aggregate(OtherJobSkills)" +
+                "SELECT [Measures].[Skills Count] ON 0, " +
+                "Union([TopJobSkills], [Skill].[Skill Name].[(others)]) ON 1 " +
+                "FROM [JobSkills]"*/
+                   /* "WITH " +
+                    "SET TopJobSkills as 'TopCount([Skill].[Skill Name].members, 20, [Measures].[Skills Count])'" +
+                    "SET NonTopJobSkills as 'Except({[Skill].[Skill Name].members}, [TopJobSkills])'" +
+                    "MEMBER Skill.[]"
+                    "SELECT [Measures].[Skills Count] ON 0, " +
+                    "[NonTopJobSkills] ON 1 " +
+                    "FROM [JobSkills]"*/
+
+    };
+
+}

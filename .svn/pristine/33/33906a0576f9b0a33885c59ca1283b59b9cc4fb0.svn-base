@@ -1,0 +1,4 @@
+/**
+ * Provides an object model for building OLAP queries programmatically (experimental). 
+ */
+package com.test.query;

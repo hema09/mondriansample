@@ -1,0 +1,11 @@
+package com.test.query;
+
+import com.test.query.SelectionTree.SelectionNode;
+
+public interface SelectionNodeVisitor {
+
+	void visitLeave(SelectionNode selectionNode);
+
+	boolean visitEnter(SelectionNode selectionNode);
+
+}

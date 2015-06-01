@@ -1,0 +1,40 @@
+<Schema name="APTCAREER">
+
+    <Dimension name="Job" type="StandardDimension" visible="true" primaryKey="JOB_ID" >
+        <Hierarchy visible="true" hasAll="true" primaryKey="JOB_ID">
+            <Table name="JOB" alias="">
+            </Table>
+            <Level name="Job Country" visible="true" column="LOCATION_COUNTRY" uniqueMembers="true"/>
+            <Level name="Job State" visible="true" column="LOCATION_STATE" uniqueMembers="true"/>
+            <Level name="Job City" visible="true" column="LOCATION_CITY" uniqueMembers="false"/>
+            <Level name="Job Title" visible="true" column="TITLE" uniqueMembers="true"/>
+        </Hierarchy>
+    </Dimension>
+
+  <!--**********************************CUBE JobSkills ****************************************-->
+  <Cube name="JobSkills" visible="true" cache="true" enabled="true">
+    <Table name="JOB_SKILL" />
+
+      <DimensionUsage name="Job" source="Job" foreignKey="JOB_ID"/>
+
+    <Dimension name="Time" type="TimeDimension" visible="true" foreignKey="CREATE_DATE" >
+    </Dimension>
+
+    <Dimension name="Skill" type="StandardDimension" visible="true" foreignKey="SKILL_ID" >
+      <Hierarchy visible="false" hasAll="true" primaryKey="SKILL_ID">
+        <Table name="JOB_SKILL" alias="">
+        </Table>
+        <Level name="Skill Name" visible="true" column="SKILL_NAME" type="String" uniqueMembers="true">
+        </Level>
+      </Hierarchy>
+    </Dimension>
+
+    <Measure name="Skills Count" column="SKILL_NAME" aggregator="count" formatString="Standard">
+    </Measure>
+
+      <Measure name="Jobs Count" column="JOB_ID" aggregator="count" formatString="Standard">
+      </Measure>
+  </Cube>
+  <!--**********************************CUBE JobSkills ****************************************-->
+
+</Schema>

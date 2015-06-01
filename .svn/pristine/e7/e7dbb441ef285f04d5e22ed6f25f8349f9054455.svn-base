@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+
+<head>
+    <script src="http://d3js.org/d3.v3.min.js"></script>
+</head>
+<style>
+
+    body {
+        font: 10px sans-serif;
+    }
+
+    .axis path,
+    .axis line {
+        fill: none;
+        stroke: #000;
+        shape-rendering: crispEdges;
+    }
+
+    .bar {
+        fill: steelblue;
+    }
+
+    .x.axis path {
+        display: none;
+    }
+
+</style>
+<body>
+<script>
+var margin = {top: 20, right: 50, bottom: 30, left: 40},
+        width = 960 - margin.left - margin.right,
+        height = 500 - margin.top - margin.bottom;
+
+var x = d3.scale.ordinal().rangeRoundBands([0, width], .1);
+
+var y = d3.scale.linear().rangeRound([height, 0]);
+
+var color = d3.scale.ordinal()
+        .range(["#15B439", "#B44C2E", "#3675B4", "#34B4A5", "#B46F3A", "#d0743c", "#A0785E"]);
+
+var duration = 750,
+        delay = 25;
+var barwidth = 20;
+
+var partition = d3.layout.partition()
+        .value(function(d) { return d.size; });
+
+var xAxis = d3.svg.axis()
+        .scale(x)
+        .orient("bottom");
+
+var yAxis = d3.svg.axis()
+        .scale(y)
+        .orient("left");
+
+var svg = d3.select("body").append("svg")
+        .attr("width", width + margin.left + margin.right)
+        .attr("height", height + margin.top + margin.bottom)
+        .append("g")
+        .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+var baseUrl = "http://localhost:8080/rest/query/";
+
+d3.json(baseUrl + "stacked?col=[Store].[USA]&row=[Time].[1997]", function(error, datajson) {
+    stacked(datajson);
+});
+
+function stacked(datajson) {
+    color.domain(d3.keys(datajson.values[0]).filter(function(key) { return key !== "axis2"; }));
+
+    datajson.values.forEach(function(d) {
+        var y0 = 0;
+        d.yvals = color.domain().map(function(name) {
+            return {
+                name: name,
+                y0: y0,
+                y1: y0 += +d[name]
+            };
+        });
+        d.total = d.yvals[d.yvals.length - 1].y1;
+    });
+
+    datajson.values.sort(function(a, b) { return b.total - a.total; });
+
+    x.domain(datajson.values.map(function(d) { return d.axis2; }));
+    y.domain([0, d3.max(datajson.values, function(d) { return d.total; })]);
+
+    svg.append("g")
+            .attr("class", "x axis")
+            .attr("transform", "translate(0," + height + ")")
+            .call(xAxis);
+
+    svg.append("g")
+            .attr("class", "y axis")
+            .call(yAxis);
+
+
+    updateLabels(datajson.metadata.xlabel, datajson.metadata.ylabel);
+
+    var state = svg.selectAll(".axis2")
+            .data(datajson.values)
+            .enter().append("g")
+            .attr("class", "g")
+            .attr("class", "enter")
+            .attr("transform", function(d) { return "translate(" + x(d.axis2) + ",0)"; })
+            .on("click", function(d) {
+                var row=datajson.metadata.axis1parent;
+                var col=datajson.metadata.axis2Definition[d.axis2];
+                var query="row="+ row +"&col=" + col
+                console.log("query: " + query);
+                d3.json(baseUrl + "barchart?" + query, function(error, json) {
+                    console.log(json);
+                    jsonfull = json;
+                    var root = json.data;
+                    var xlabel = json.metadata.xlabel;
+                    var ylabel = json.metadata.ylabel;
+                    console.log(root.children);
+                    partition.nodes(root);
+                    x.domain(root.children.map(function(d) {return d.axis1}));
+                    y.domain([0, d3.max(root.children, function(d) { return d.value; })]).nice();
+                    console.log(y.domain);
+                    drilldown(xlabel, ylabel, root, 0);
+                });
+            });
+
+    state.selectAll("rect")
+            .data(function(d) { return d.yvals; })
+            .enter().append("rect")
+            .attr("width", x.rangeBand())
+            .attr("y", function(d) { return y(d.y1); })
+            .attr("height", function(d) { return y(d.y0) - y(d.y1); })
+            .style("fill", function(d) { return color(d.name); });
+
+    var legend = svg.selectAll(".legend")
+            .data(color.domain().slice().reverse())
+            .enter().append("g")
+            .attr("class", "legend")
+            .attr("transform", function(d, i) { return "translate(0," + i * 20 + ")"; });
+
+    legend.append("rect")
+            .attr("x", width - 18)
+            .attr("width", 18)
+            .attr("height", 18)
+            .style("fill", color);
+
+    legend.append("text")
+            .attr("x", width - 24)
+            .attr("y", 9)
+            .attr("dy", ".35em")
+            .style("text-anchor", "end")
+            .text(function(d) { return d; });
+
+}
+
+function drilldown(xlabel, ylabel, d, i) {
+    console.log(d);
+    svg.selectAll(".legend").style("fill-opacity", 1e-6);
+    if (!d.children || this.__transition__) return;
+    var end = duration + d.children.length * delay;
+
+    // Mark any currently-displayed bars as exiting.
+    var exit = svg.selectAll(".enter")
+            .attr("class", "exit");
+
+    // Entering nodes immediately obscure the clicked-on bar, so hide it.
+    exit.selectAll("rect").filter(function(p) { return p === d; })
+            .style("fill-opacity", 1e-6);
+
+    // Enter the new bars for the clicked-on data.
+    // Per above, entering bars are immediately visible.
+    var enter = bar(d)
+            .attr("transform", stack(i))
+            .style("opacity", 1);
+
+    // Have the text fade-in, even though the bars are visible.
+    // Color the bars as parents; they will fade to children if appropriate.
+    enter.select("text").style("fill-opacity", 1e-6);
+    enter.select("rect").style("fill", color(true));
+
+    // Update the y-scale domain.
+    y.domain([0, d3.max(d.children, function(d) { return d.value; })]).nice();
+
+    // Update the y-axis.
+    svg.selectAll(".y.axis").transition()
+            .duration(duration)
+            .call(yAxis);
+    svg.selectAll(".x.axis").transition()
+            .duration(duration)
+            .call(xAxis);
+
+    updateLabels(xlabel, ylabel);
+
+    // Transition entering bars to their new position.
+    var enterTransition = enter.transition()
+            .duration(duration)
+            .delay(function(d, i) { return i * delay; })
+            .attr("transform", function(d, i) {
+                return "translate(" + x.rangeBand() * i * 1.2 + ","+ y(d.value)+")";
+            });
+
+    // Transition entering text.s
+    enterTransition.select("text")
+            .style("fill-opacity", 1) ;
+    //.attr("transform", "translate("+ barwidth * i * 1.2 +"," + height + ")");
+
+    // Transition entering rects to the new x-scale.
+    enterTransition.select("rect")
+            .style("fill", function(d) { return color(!!d.children); });
+
+
+    // Transition exiting bars to fade out.
+    var exitTransition = exit.transition()
+            .duration(duration)
+            .style("opacity", 1e-6)
+            .remove();
+
+    // Transition exiting bars to the new x-scale.
+    exitTransition.selectAll("rect")
+            .attr("height", function(d) { return y(d.value); });
+
+    // Rebind the current node to the background.
+    svg.select(".background")
+            .datum(d)
+            .transition()
+            .duration(end);
+
+    d.index = i;
+}
+
+function updateLabels(xlabel, ylabel) {
+    console.log("xlabel="+xlabel+",ylabel="+ylabel);
+    svg.selectAll(".label").remove();
+
+    svg.append("text")
+            .attr("class", "x label")
+            .attr("text-anchor", "end")
+            .attr("x", width + 35)
+            .attr("y", height + 15)
+            .text(xlabel);
+
+    svg.append("text")
+            .attr("class", "y label")
+            .attr("text-anchor", "end")
+            .attr("y", 3)
+            .attr("dy", ".75em")
+            .attr("transform", "rotate(-90)")
+            .text(ylabel);
+}
+
+function bar(d) {
+    console.log(d);
+    var bar = svg.insert("g", ".x.axis")
+            .attr("class", "enter")
+            .selectAll("g")
+            .data(d.children)
+            .enter().append("g")
+            .on("click", function(d) {
+                var xval = d.axis1;
+                console.log("child="+xval);
+                var method;
+                var param1=jsonfull.metadata.axis1Definition[xval];
+                var param2=jsonfull.metadata.axis2Definition[jsonfull.metadata.axis2[0]];
+                var query="row="+ param1 +"&col=" + param2
+                console.log("query=" + query);
+                d3.json(baseUrl + "barchart?" + query, function(error, json) {
+                    jsonfull = json;
+                    var root = json.data;
+                    var xlabel = json.metadata.xlabel;
+                    var ylabel = json.metadata.ylabel;
+                    console.log("bar root = " + root);
+                    partition.nodes(root);
+                    x.domain(root.children.map(function(d) {return d.axis1}));
+                    y.domain([0, d3.max(root.children, function(d) { return d.value; })]).nice();
+                    drilldown(xlabel, ylabel, root, 0);
+                });
+            });
+
+    bar.append("rect")
+            .attr("height", function(d) { return (height-y(d.value)); })
+            .attr("width", x.rangeBand());
+
+    return bar;
+}
+
+function stack(i) {
+    console.log("i=" + i);
+    var x0 = 0;
+    return function(d) {
+        var tx = "translate(" + x0 + "," + x.rangeBand() * i * 1.2 + ")";
+        x0 += y(d.value);
+        return tx;
+    };
+}
+
+</script>
+</body>

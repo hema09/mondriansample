@@ -1,0 +1,109 @@
+package com.test.json;
+
+import mondrian.olap.Level;
+import org.codehaus.jackson.JsonGenerator;
+import org.codehaus.jackson.JsonProcessingException;
+import org.codehaus.jackson.map.JsonSerializer;
+import org.codehaus.jackson.map.SerializerProvider;
+import org.olap4j.CellSet;
+import org.olap4j.CellSetAxis;
+import org.olap4j.Position;
+import org.olap4j.metadata.Hierarchy;
+import org.olap4j.metadata.Member;
+import org.olap4j.metadata.NamedList;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+
+/**
+ * Created with IntelliJ IDEA.
+ * User: hbhatia
+ * Date: 5/22/15
+ * Time: 2:32 PM
+ * To change this template use File | Settings | File Templates.
+ */
+public class CellSetSerializerBarChart extends JsonSerializer<CellSet> {
+
+        @Override
+        public Class<CellSet> handledType() {
+            return CellSet.class;
+        }
+
+        @Override
+        public void serialize(CellSet cellSet, JsonGenerator json, SerializerProvider serializerProvider) throws IOException, JsonProcessingException {
+            json.writeStartObject();
+            json.writeFieldName("metadata");
+            json.writeStartObject();  // metadata start
+            json.writeFieldName("xlabel");  // TODO
+            json.writeString(cellSet.getAxes().get(0).getPositions().get(0).getMembers().get(0).getLevel().getName());
+
+            json.writeFieldName("ylabel");  // TODO
+            json.writeString("Count");
+
+            List<CellSetAxis> axes = cellSet.getAxes();
+            int axescount = 0;
+            for(CellSetAxis axis : axes) {
+                String axisName = "axis"+ ++axescount;
+                List<Position> positions = axis.getPositions();
+                json.writeFieldName(axisName);
+                json.writeStartArray();   // axis start
+                for(Position position : positions) {
+                    List<Member> members = position.getMembers();
+                    for(Member member : members) {
+                        json.writeString(member.getCaption());
+                    }
+                }
+                json.writeEndArray();   // axis end
+                json.writeFieldName(axisName + "Definition");
+                json.writeStartObject();   // definition start
+                for(Position position : positions) {
+                    List<Member> members = position.getMembers();
+                    for(Member member : members) {
+                        json.writeFieldName(member.getCaption());
+                        json.writeString(member.getUniqueName());
+                    }
+                }
+                json.writeEndObject();    // definition end
+            }
+            json.writeEndObject(); // metadata end
+            json.writeFieldName("data");    // data start
+            write(json, cellSet, axes);
+            json.writeEndObject();
+        }
+
+        private List<Integer> init(final int size) {
+            List<Integer> list = new ArrayList<Integer>(size);
+            for(int i = 0; i < size; ++i){
+                list.add(0);
+            }
+            return list;
+        }
+
+        private void write(final JsonGenerator json, final CellSet cs, final List<CellSetAxis> axes) throws IOException {
+            CellSetAxis axisabove = axes.get(1);
+            int cellIndex = 0;
+            json.writeStartObject();  // data start
+            json.writeFieldName("axis1");
+            CellSetAxis axis = axes.get(0);
+            java.util.List<org.olap4j.Position> positions = axis.getPositions();
+            json.writeString(positions.get(0).getMembers().get(0).getParentMember().getCaption());
+            json.writeFieldName("children");
+            json.writeStartArray();             // children start
+            for(int j=0; j< axisabove.getPositionCount(); j++) {
+                for(int i = 0; i < axis.getPositionCount(); ++i) {
+                    json.writeStartObject();
+                    json.writeFieldName("axis1");
+                    json.writeString(positions.get(i).getMembers().get(0).getCaption());
+                    String str = cs.getCell(cellIndex++).getFormattedValue();
+                    str = str.replace(",",""); // again a hack to remove comma in numbers
+                    json.writeFieldName("size");
+                    json.writeNumber(Long.parseLong(str));
+                    json.writeEndObject();
+                }
+            }
+            json.writeEndArray();      // children start
+            json.writeEndObject();  // data end
+        }
+}
